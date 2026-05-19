@@ -112,7 +112,9 @@ export const db = {
   },
 
   /**
-   * Add or update reviews (upsert)
+   * Add or update reviews (upsert).
+   * IMPORTANT: Preserves existing status, ai_responses, and selected_response
+   * so that re-syncing a Place ID never resets already-approved reviews to Pending.
    */
   async upsertReviews(reviews: Review[]): Promise<Review[]> {
     const nowStr = new Date().toISOString();
@@ -122,7 +124,28 @@ export const db = {
     }));
 
     if (isSupabaseConfigured && supabase) {
-      const { data, error } = await supabase.from('reviews').upsert(formattedReviews).select();
+      // Fetch existing reviews to preserve their resolved status and AI responses
+      const ids = formattedReviews.map(r => r.id);
+      const { data: existing } = await supabase.from('reviews').select('id, status, ai_responses, selected_response').in('id', ids);
+      const existingMap = new Map<string, Partial<Review>>(
+        (existing || []).map((r: any) => [r.id, r])
+      );
+
+      // Merge: keep existing status/ai fields for reviews already in DB
+      const mergedReviews = formattedReviews.map(r => {
+        const prev = existingMap.get(r.id);
+        if (prev) {
+          return {
+            ...r,
+            status: prev.status ?? r.status,
+            ai_responses: prev.ai_responses ?? r.ai_responses,
+            selected_response: prev.selected_response ?? r.selected_response,
+          };
+        }
+        return r;
+      });
+
+      const { data, error } = await supabase.from('reviews').upsert(mergedReviews).select();
       if (error) {
         console.error('Supabase upsertReviews error:', error);
         throw error;
@@ -131,19 +154,21 @@ export const db = {
     } else {
       const localReviews = readLocalDb();
       const reviewMap = new Map<string, Review>();
-      
+
       // Load current reviews
       localReviews.forEach(r => reviewMap.set(r.id, r));
-      
-      // Update with new reviews (merging properties so we don't lose AI responses)
+
+      // Merge: preserve existing status, ai_responses, selected_response
       formattedReviews.forEach(newR => {
         const existing = reviewMap.get(newR.id);
         if (existing) {
           reviewMap.set(newR.id, {
             ...existing,
             ...newR,
-            ai_responses: newR.ai_responses || existing.ai_responses,
-            selected_response: newR.selected_response || existing.selected_response,
+            // Never overwrite these fields if already set
+            status: existing.status ?? newR.status,
+            ai_responses: existing.ai_responses ?? newR.ai_responses,
+            selected_response: existing.selected_response ?? newR.selected_response,
           });
         } else {
           reviewMap.set(newR.id, newR);
@@ -152,9 +177,10 @@ export const db = {
 
       const updatedList = Array.from(reviewMap.values());
       writeLocalDb(updatedList);
-      return formattedReviews;
+      return formattedReviews.map(r => reviewMap.get(r.id) || r);
     }
   },
+
 
   /**
    * Update the status and selected response of a review
