@@ -260,6 +260,7 @@ export default function Dashboard() {
               setSelectedPlaceId(''); // Reset place filter on click Total
             }
           }}
+          hasSelectedPlace={selectedPlaceId !== ''}
         />
 
         {/* Main Work Space Section */}
