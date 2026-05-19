@@ -40,7 +40,7 @@
 * **Icons:** Lucide React
 * **Database:** Supabase Cloud (PostgreSQL) with local in-memory fallback to prevent app crashes when credentials are not configured.
 * **AI Engine:**
-  * **Google Gemini API** (`gemini-2.0-flash` & `gemini-2.5-flash`) as the primary generator.
+  * **Google Gemini API** (`gemini-2.0-flash`) as the primary generator.
   * **OpenAI API** (`gpt-4o-mini`) as the Tier-1 backup engine.
   * **Mock AI Engine** as the Tier-2 offline generator (guarantees responses in under 3.5 seconds when rate limits/quotas are exceeded).
 
@@ -52,14 +52,19 @@ To ensure high availability and robust offline capabilities, the app implements 
 
 ```mermaid
 graph TD
-      A[Request AI Response] --> B{Gemini API Configured?}
-      B -- Yes --> C[Call Gemini API]
-      B -- No --> D{OpenAI API Configured?}
-      C -- Failed / 429 Quota Limit --> D
-      D -- Yes --> E[Call OpenAI API]
-      D -- No --> F[Run Local Mock AI Fallback]
-      E -- Failed / Quota Limit --> F
-      F --> G[Return Response in < 3.5s]
+  A[Request AI Response] --> B{Gemini on cooldown?}
+  B -- No --> C[Call Gemini API]
+  B -- Yes --> E
+  C -- Success --> G[Return Response]
+  C -- "429 Quota" --> D[Mark Gemini cooldown 60s]
+  D --> E{OpenAI on cooldown?}
+  E -- No --> F[Call OpenAI API]
+  E -- Yes --> H[Mock AI Fallback]
+  F -- Success --> G
+  F -- "429 / insufficient_quota" --> I[Mark OpenAI cooldown 5min]
+  I --> H
+  H --> G
+  D2[After 60s] -.->|Auto-retry| B
 ```
 
 ---
