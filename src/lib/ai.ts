@@ -15,12 +15,44 @@ export const isGeminiConfigured = !!(geminiKey && geminiKey !== 'your-gemini-api
 export const isOpenAiConfigured = !!(openaiKey && openaiKey !== 'your-openai-api-key' && openaiKey !== '');
 
 /**
- * Generate mock AI responses when no API keys are provided.
- * Dynamically adjusts based on client rating and name to look fully functional.
+ * Smart quota cooldown trackers.
+ * When an API returns 429/quota error, skip it for COOLDOWN_MS then auto-retry.
+ * For OpenAI insufficient_quota (billing), use a longer cooldown (5 min).
+ */
+const GEMINI_COOLDOWN_MS = 60_000;   // 60s — free tier rate limit, resets quickly
+const OPENAI_COOLDOWN_MS = 300_000;  // 5 min — billing quota, no point retrying often
+
+let geminiQuotaFailedAt: number | null = null;
+let openaiQuotaFailedAt: number | null = null;
+
+function isOnCooldown(failedAt: number | null, cooldownMs: number, label: string): boolean {
+  if (failedAt === null) return false;
+  const elapsed = Date.now() - failedAt;
+  if (elapsed >= cooldownMs) return false; // cooldown expired, let it retry
+  const remaining = Math.ceil((cooldownMs - elapsed) / 1000);
+  console.log(`[AI] ${label} on cooldown (${remaining}s remaining), skipping.`);
+  return true;
+}
+
+function isGeminiOnCooldown() { return isOnCooldown(geminiQuotaFailedAt, GEMINI_COOLDOWN_MS, 'Gemini'); }
+function isOpenAiOnCooldown()  { return isOnCooldown(openaiQuotaFailedAt, OPENAI_COOLDOWN_MS, 'OpenAI'); }
+
+function markGeminiQuotaExceeded(): void {
+  geminiQuotaFailedAt = Date.now();
+  console.log('[AI] Gemini quota exceeded — skipping for 60s, routing to OpenAI.');
+}
+
+function markOpenAiQuotaExceeded(): void {
+  openaiQuotaFailedAt = Date.now();
+  console.log('[AI] OpenAI quota/billing exceeded — skipping for 5min, routing to Mock.');
+}
+
+/**
+ * Generate mock AI responses when no API keys are configured.
  */
 export function generateMockAiResponses(authorName: string, rating: number, text: string): AiResponseSet {
   const name = authorName || 'Quý khách';
-  
+
   if (rating >= 4) {
     return {
       standard: `Xin chào ${name}, chúng tôi xin chân thành cảm ơn quý khách đã dành thời gian đánh giá ${rating} sao và chia sẻ trải nghiệm tốt đẹp tại đây. Rất hy vọng sẽ được tiếp tục chào đón quý khách quay trở lại trong thời gian sớm nhất để mang đến dịch vụ ngày một hoàn hảo hơn. Trân trọng!`,
@@ -28,10 +60,9 @@ export function generateMockAiResponses(authorName: string, rating: number, text
       constructive: `Kính chào ${name}, cảm ơn bạn đã có những đánh giá tích cực dành cho cơ sở. Mặc dù bạn đã hài lòng, chúng tôi vẫn ghi nhận phản hồi này để làm động lực tiếp tục nâng cao tiêu chuẩn dịch vụ, đảm bảo mỗi chuyến ghé thăm tiếp theo của bạn đều là một trải nghiệm trọn vẹn 10 điểm.`
     };
   } else {
-    // Apologetic response for negative feedback (1-3 stars)
     const problemMatch = text.match(/(điều hòa|cách âm|ồn|cũ|dịch vụ|check-in|nhân viên|phòng|nước nóng)/i);
     const problemTopic = problemMatch ? problemMatch[0].toLowerCase() : 'trải nghiệm chưa hài lòng';
-    
+
     return {
       standard: `Xin chào ${name}, chúng tôi rất tiếc khi biết quý khách đã có trải nghiệm chưa trọn vẹn tại cơ sở. Thay mặt ban quản lý, chúng tôi xin chân thành xin lỗi vì sự bất tiện này. Chúng tôi vô cùng trân trọng đóng góp của quý khách và sẽ kiểm tra lại ngay để cải thiện chất lượng dịch vụ.`,
       friendly: `Chào ${name} ơi, tụi mình rất tiếc khi đọc được những dòng chia sẻ này. 😢 Xin lỗi bạn rất nhiều vì dịch vụ lần này chưa làm bạn vui vẻ trọn vẹn nha. Tụi mình ghi nhận ngay và cam kết sẽ cố gắng hết sức để những lần sau bạn ghé thăm sẽ không còn gặp phải vấn đề tương tự nữa ạ.`,
@@ -41,7 +72,9 @@ export function generateMockAiResponses(authorName: string, rating: number, text
 }
 
 /**
- * Service to generate 3 customized AI responses
+ * Generate 3 AI reply suggestions.
+ * Priority: Gemini → OpenAI (if Gemini quota exceeded) → Mock
+ * Smart cooldown: After Gemini 429, routes to OpenAI for 60s then auto-retries Gemini.
  */
 export async function generateReplies(
   authorName: string,
@@ -60,10 +93,10 @@ Hãy trả về kết quả dưới định dạng JSON duy nhất, có cấu tr
   "constructive": "Phản hồi tập trung giải quyết vấn đề. Nếu đánh giá tích cực (4-5 sao), hãy hướng tới việc duy trì mối quan hệ và tiếp thu ý kiến để nâng cấp dịch vụ hơn nữa. Nếu đánh giá tiêu cực (1-3 sao), hãy chân thành xin lỗi, giải thích nhẹ nhàng và cam kết khắc phục lỗi cụ thể đã nêu một cách chuyên nghiệp."
 }`;
 
-  // 1. GEMINI FALLBACK (Recommended)
-  if (isGeminiConfigured) {
+  // 1. GEMINI (primary) — skip if on cooldown from a recent 429
+  if (isGeminiConfigured && !isGeminiOnCooldown()) {
     try {
-      console.log('Generating AI responses using Gemini API...');
+      console.log('[AI] Generating responses via Gemini gemini-2.0-flash...');
       const genAI = new GoogleGenerativeAI(geminiKey!);
       const model = genAI.getGenerativeModel({
         model: 'gemini-2.0-flash',
@@ -72,15 +105,20 @@ Hãy trả về kết quả dưới định dạng JSON duy nhất, có cấu tr
       const result = await model.generateContent(prompt);
       const rawText = result.response.text();
       return JSON.parse(rawText) as AiResponseSet;
-    } catch (error) {
-      console.error('Gemini API call failed, trying OpenAI or Mock fallback:', error);
+    } catch (error: any) {
+      // Detect quota exceeded (429) vs other errors
+      if (error?.status === 429 || error?.message?.includes('429') || error?.message?.includes('quota')) {
+        markGeminiQuotaExceeded();
+      } else {
+        console.error('[AI] Gemini non-quota error:', error);
+      }
     }
   }
 
-  // 2. OPENAI FALLBACK
-  if (isOpenAiConfigured) {
+  // 2. OPENAI FALLBACK — skip if quota/billing already known to be exhausted
+  if (isOpenAiConfigured && !isOpenAiOnCooldown()) {
     try {
-      console.log('Generating AI responses using OpenAI API (gpt-4o-mini)...');
+      console.log('[AI] Generating responses via OpenAI gpt-4o-mini...');
       const openai = new OpenAI({ apiKey: openaiKey! });
       const response = await openai.chat.completions.create({
         model: 'gpt-4o-mini',
@@ -90,16 +128,22 @@ Hãy trả về kết quả dưới định dạng JSON duy nhất, có cấu tr
       });
       const rawText = response.choices[0].message.content || '{}';
       return JSON.parse(rawText) as AiResponseSet;
-    } catch (error) {
-      console.error('OpenAI API call failed, trying Mock fallback:', error);
+    } catch (error: any) {
+      // insufficient_quota = billing exhausted; 429 = rate limit — both get cooldown
+      if (error?.status === 429 || error?.code === 'insufficient_quota') {
+        markOpenAiQuotaExceeded();
+      } else {
+        console.error('[AI] OpenAI unexpected error:', error);
+      }
     }
   }
 
-  // 3. MOCK FALLBACK (Zero setup required)
-  console.log('No API keys configured or call failed. Using instant intelligent Mock AI Fallback.');
-  // Simulate network delay ONLY if no API was attempted to ensure < 5s total time
-  if (!isGeminiConfigured && !isOpenAiConfigured) {
+  // 3. MOCK FALLBACK — instant when APIs were attempted but failed
+  console.log('[AI] All APIs unavailable or on cooldown. Using intelligent Mock fallback.');
+  const anyApiConfigured = isGeminiConfigured || isOpenAiConfigured;
+  if (!anyApiConfigured) {
     await new Promise(resolve => setTimeout(resolve, 800));
   }
   return generateMockAiResponses(authorName, rating, text);
 }
+
