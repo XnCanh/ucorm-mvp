@@ -86,35 +86,64 @@ graph TD
 
 ---
 
-## 🛠️ Installation & Setup
+## 🛠️ Installation & Local Setup
 
-1. **Install Dependencies:**
-   ```bash
-   npm install
-   ```
+> **⚡ Zero-Config Notice:** The app runs fully without any API keys. All features degrade gracefully to sample data / mock AI — perfect for a quick local demo.
 
-2. **Setup Environment Variables (`.env.local`):**
-   Create a `.env.local` file in the root directory:
-   ```env
-   # Supabase Configuration
-   NEXT_PUBLIC_SUPABASE_URL=https://your-project.supabase.co
-   NEXT_PUBLIC_SUPABASE_ANON_KEY=your-anon-key
+### 1. Clone & Install
 
-   # AI Keys
-   GEMINI_API_KEY=your-gemini-key
-   OPENAI_API_KEY=your-openai-key
+```bash
+git clone https://github.com/XnCanh/ucorm-mvp.git
+cd ucorm-mvp
+npm install
+```
 
-   # Google Places (Leave blank for Demo Mode fallback)
-   GOOGLE_PLACES_API_KEY=
-   ```
+### 2. Configure Environment Variables
 
-3. **Run Dev Server:**
-   ```bash
-   npm run dev
-   ```
-   Open [http://localhost:3000](http://localhost:3000) to view the application.
+Copy the example file and fill in your keys:
+
+```bash
+cp .env.example .env.local
+```
+
+Then edit `.env.local`:
+
+```env
+# ── Supabase (Optional) ──────────────────────────────────────────────────────
+# Without this, the app uses a local JSON file as the database (works fine for demo).
+# Get free credentials at: https://supabase.com → New Project → Settings → API
+NEXT_PUBLIC_SUPABASE_URL=https://your-project-id.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY=your-supabase-anon-key
+
+# ── AI Engine (At least one recommended) ─────────────────────────────────────
+# Smart failover: Gemini → OpenAI → Mock AI (all auto, no config needed for demo)
+#
+# Gemini (Free tier available):
+# → https://aistudio.google.com/app/apikey → Create API Key
+GEMINI_API_KEY=your-gemini-api-key
+#
+# OpenAI (Requires billing credit):
+# → https://platform.openai.com/api-keys → Create new secret key
+OPENAI_API_KEY=your-openai-api-key
+
+# ── Google Places API (Optional) ─────────────────────────────────────────────
+# Without this, syncing a Place ID will load realistic Vietnamese sample reviews instead.
+# → https://console.cloud.google.com → Enable "Places API" → Credentials → Create API Key
+GOOGLE_PLACES_API_KEY=your-google-places-api-key
+```
+
+### 3. Run the Development Server
+
+```bash
+npm run dev
+```
+
+Open [http://localhost:3000](http://localhost:3000) to view the application.
+
+> **Tip for reviewers:** You can leave all keys blank and the app will still demonstrate the full UI/UX flow — Place ID sync loads sample data, AI generation uses the Mock engine (<1s), and Approve/status updates work normally via local JSON storage.
 
 ---
+
 
 ## 👤 Contact & Author
 
