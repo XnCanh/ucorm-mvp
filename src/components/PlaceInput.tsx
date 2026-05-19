@@ -1,11 +1,12 @@
 'use client';
 
 import React, { useState } from 'react';
-import { Search, Loader2, Sparkles, HelpCircle } from 'lucide-react';
+import { Search, Loader2, Sparkles, HelpCircle, Info } from 'lucide-react';
 
 interface PlaceInputProps {
   onFetch: (placeId: string) => Promise<void>;
   isLoading: boolean;
+  hasGoogleKey?: boolean;
 }
 
 const SAMPLE_PLACES = [
@@ -14,7 +15,7 @@ const SAMPLE_PLACES = [
   { name: 'InterContinental Danang', id: 'ChIJL-m6_n0YQTER03j6Rmgm5-o' },
 ];
 
-export default function PlaceInput({ onFetch, isLoading }: PlaceInputProps) {
+export default function PlaceInput({ onFetch, isLoading, hasGoogleKey = false }: PlaceInputProps) {
   const [placeId, setPlaceId] = useState('');
   const [error, setError] = useState('');
 
@@ -94,6 +95,16 @@ export default function PlaceInput({ onFetch, isLoading }: PlaceInputProps) {
         </form>
 
         {error && <p className="text-xs text-red-400 font-medium">{error}</p>}
+
+        {/* Fallback Warning Note */}
+        {!hasGoogleKey && (
+          <div className="bg-blue-500/10 border border-blue-500/20 rounded-lg p-3 flex items-start gap-2.5">
+            <Info className="h-4 w-4 text-blue-400 mt-0.5 shrink-0" />
+            <p className="text-xs text-blue-300 leading-relaxed">
+              <strong className="font-semibold text-blue-400">Chế độ Demo (Sample Data):</strong> Hệ thống nhận thấy chưa cấu hình khóa Google Places API. Để đảm bảo trải nghiệm đánh giá không bị gián đoạn, khi bấm đồng bộ, hệ thống sẽ tự động tạo dữ liệu mẫu (Sample Data) chân thực vào cơ sở dữ liệu để test luồng AI.
+            </p>
+          </div>
+        )}
 
         {/* Quick Demo Selector */}
         <div className="flex flex-wrap items-center gap-2 mt-1">

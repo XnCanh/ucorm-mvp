@@ -1,15 +1,15 @@
 -- Create reviews table
 create table if not exists public.reviews (
-  id text primary key,                     -- Google Review ID or Custom UUID
-  place_id text not null,                  -- Google Maps Place ID
-  author_name text not null,               -- Customer author name
-  author_photo_url text,                   -- Customer avatar URL
-  rating integer not null check (rating >= 1 and rating <= 5), -- Rating (1-5 stars)
-  text text,                               -- Review content
-  publish_time timestamp with time zone,   -- Review publish timestamp
-  status text not null default 'pending',  -- Status: 'pending' or 'resolved'
-  ai_responses jsonb,                      -- JSON containing: { "standard": "...", "friendly": "...", "constructive": "..." }
-  selected_response text,                  -- Approved response
+  id text primary key,                     
+  place_id text not null,                  
+  author_name text not null,               
+  author_photo_url text,                   
+  rating integer not null check (rating >= 1 and rating <= 5), 
+  text text,                               
+  publish_time timestamp with time zone,   
+  status text not null default 'pending',  
+  ai_responses jsonb,                      
+  selected_response text,                  
   created_at timestamp with time zone default timezone('utc'::text, now()) not null
 );
 

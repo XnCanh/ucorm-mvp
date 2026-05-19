@@ -25,7 +25,6 @@ export async function POST(request: NextRequest) {
     );
 
     // 3. Update the review with generated responses in the DB
-    // We maintain status and other fields while saving ai_responses
     const updatedReview = await db.upsertReviews([{
       ...review,
       ai_responses: aiResponses,

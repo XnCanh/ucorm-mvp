@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Sparkles, Info, AlertTriangle, CheckCircle, RefreshCcw } from 'lucide-react';
+import { Sparkles, Info, AlertTriangle, CheckCircle, RefreshCcw, Wand2, Loader2 } from 'lucide-react';
 import Header from '@/components/Header';
 import StatsOverview from '@/components/StatsOverview';
 import PlaceInput from '@/components/PlaceInput';
@@ -17,6 +17,7 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
   const [isGeneratingAI, setIsGeneratingAI] = useState(false);
+  const [isBulkGenerating, setIsBulkGenerating] = useState(false);
   const [isApproving, setIsApproving] = useState(false);
   
   // Envs status
@@ -137,6 +138,42 @@ export default function Dashboard() {
     }
   };
 
+  // Handler: Bulk Generate AI
+  const handleBulkGenerateAI = async () => {
+    const targets = reviews.filter(r => r.status === 'pending' && !r.ai_responses);
+    if (targets.length === 0) {
+      showToast('Tuyệt vời! Tất cả đánh giá đã có phản hồi AI.', 'success');
+      return;
+    }
+    
+    setIsBulkGenerating(true);
+    showToast(`Đang tự động chạy ngầm AI cho ${targets.length} đánh giá...`, 'info');
+    
+    let currentReviews = [...reviews];
+    
+    for (const target of targets) {
+      try {
+        const res = await fetch('/api/ai/generate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ reviewId: target.id }),
+        });
+        const data = await res.json();
+        if (data.success && data.review) {
+           currentReviews = currentReviews.map(r => r.id === target.id ? data.review : r);
+           setReviews([...currentReviews]);
+           if (activeReview?.id === target.id) {
+             setActiveReview(data.review);
+           }
+        }
+      } catch (err) {
+        console.error('Bulk generate error:', err);
+      }
+    }
+    setIsBulkGenerating(false);
+    showToast(`Đã hoàn tất tạo AI hàng loạt!`, 'success');
+  };
+
   // Handler: Approve and Resolve review
   const handleApproveResponse = async (reviewId: string, approvedResponse: string) => {
     try {
@@ -192,7 +229,7 @@ export default function Dashboard() {
 
       <main className="flex-1 py-6 space-y-6">
         {/* Sync Input Panel */}
-        <PlaceInput onFetch={handleSyncPlaceReviews} isLoading={isSyncing} />
+        <PlaceInput onFetch={handleSyncPlaceReviews} isLoading={isSyncing} hasGoogleKey={apiKeysStatus.google} />
 
         {/* Stats Overview */}
         <StatsOverview reviews={reviews} />
@@ -227,9 +264,14 @@ export default function Dashboard() {
                   <h3 className="text-xs font-extrabold uppercase tracking-wider text-gray-300">
                     Hộp Thư Đánh Giá
                   </h3>
-                  <span className="text-[10px] text-gray-500 font-medium">
-                    Sắp xếp: Mới nhất trước
-                  </span>
+                  <button
+                    onClick={handleBulkGenerateAI}
+                    disabled={isBulkGenerating || reviews.filter(r => r.status === 'pending' && !r.ai_responses).length === 0}
+                    className="text-[10px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 px-2 py-1 rounded font-bold flex items-center gap-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isBulkGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
+                    Tự động tạo AI
+                  </button>
                 </div>
                 <ReviewList
                   reviews={reviews}
@@ -256,7 +298,7 @@ export default function Dashboard() {
       {/* Footer */}
       <footer className="py-6 mt-12 border-t border-gray-900 text-center">
         <p className="text-xs text-gray-500">
-          AI-Powered ORM Proof of Concept &bull; Được phát triển bởi Antigravity &bull; Product Owner: UCTalent Labs
+          AI-Powered ORM Proof of Concept &bull; Product Owner: UCTalent Labs
         </p>
       </footer>
     </div>

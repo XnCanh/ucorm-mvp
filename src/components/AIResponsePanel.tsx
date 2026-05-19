@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useEffect } from 'react';
-import { Star, Sparkles, Send, CheckCircle2, User, RefreshCw, Edit3 } from 'lucide-react';
+import { Star, Sparkles, Send, CheckCircle2, User, RefreshCw, Edit3, Languages, Loader2 } from 'lucide-react';
 import { Review } from '@/lib/db';
 
 interface AIResponsePanelProps {
@@ -23,6 +23,10 @@ export default function AIResponsePanel({
 }: AIResponsePanelProps) {
   const [activeTab, setActiveTab] = useState<TabType>('standard');
   const [editedResponse, setEditedResponse] = useState('');
+  
+  // Translation state
+  const [isTranslating, setIsTranslating] = useState(false);
+  const [translatedText, setTranslatedText] = useState('');
 
   // Update editedResponse when review or active tab changes
   useEffect(() => {
@@ -31,6 +35,8 @@ export default function AIResponsePanel({
     } else {
       setEditedResponse('');
     }
+    // Reset translation when review changes
+    setTranslatedText('');
   }, [review, activeTab]);
 
   if (!review) {
@@ -72,6 +78,26 @@ export default function AIResponsePanel({
 
   const handleApproveSubmit = () => {
     onApprove(review.id, editedResponse);
+  };
+
+  const handleTranslate = async () => {
+    if (!review?.text || isTranslating) return;
+    try {
+      setIsTranslating(true);
+      const res = await fetch('/api/ai/translate', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: review.text }),
+      });
+      const data = await res.json();
+      if (data.success) {
+        setTranslatedText(data.translation);
+      }
+    } catch (err) {
+      console.error('Translation failed', err);
+    } finally {
+      setIsTranslating(false);
+    }
   };
 
   return (
@@ -130,12 +156,29 @@ export default function AIResponsePanel({
 
         {/* Customer Review Text */}
         <div className="mt-4 bg-gray-900/40 border border-gray-850 p-4 rounded-xl">
-          <p className="text-xs text-gray-500 font-bold uppercase tracking-wider mb-1.5 flex items-center gap-1.5">
-            Nội dung đánh giá:
+          <div className="flex items-center justify-between mb-1.5">
+            <p className="text-xs text-gray-500 font-bold uppercase tracking-wider flex items-center gap-1.5">
+              Nội dung đánh giá:
+            </p>
+            {review.text && (
+              <button
+                onClick={handleTranslate}
+                disabled={isTranslating}
+                className="text-xs flex items-center gap-1.5 px-2 py-1 rounded bg-indigo-500/10 text-indigo-400 border border-indigo-500/20 hover:bg-indigo-500/20 transition-all"
+              >
+                {isTranslating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Languages className="h-3 w-3" />}
+                {translatedText ? 'Dịch lại' : 'Dịch sang Tiếng Việt'}
+              </button>
+            )}
+          </div>
+          <p className="text-sm text-gray-200 leading-relaxed italic whitespace-pre-wrap">
+            "{translatedText || review.text || '(Khách hàng không viết nội dung đánh giá)'}"
           </p>
-          <p className="text-sm text-gray-200 leading-relaxed italic">
-            "{review.text || '(Khách hàng không viết nội dung đánh giá)'}"
-          </p>
+          {translatedText && (
+            <p className="text-[10px] text-indigo-400 mt-2 flex items-center gap-1">
+              <Sparkles className="h-3 w-3" /> Đã dịch bằng AI
+            </p>
+          )}
         </div>
       </div>
 

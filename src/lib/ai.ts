@@ -66,7 +66,7 @@ Hãy trả về kết quả dưới định dạng JSON duy nhất, có cấu tr
       console.log('Generating AI responses using Gemini API...');
       const genAI = new GoogleGenerativeAI(geminiKey!);
       const model = genAI.getGenerativeModel({
-        model: 'gemini-1.5-flash',
+        model: 'gemini-2.0-flash',
         generationConfig: { responseMimeType: 'application/json' },
       });
       const result = await model.generateContent(prompt);
@@ -97,7 +97,9 @@ Hãy trả về kết quả dưới định dạng JSON duy nhất, có cấu tr
 
   // 3. MOCK FALLBACK (Zero setup required)
   console.log('No API keys configured or call failed. Using instant intelligent Mock AI Fallback.');
-  // Simulate network delay for realistic experience
-  await new Promise(resolve => setTimeout(resolve, 800));
+  // Simulate network delay ONLY if no API was attempted to ensure < 5s total time
+  if (!isGeminiConfigured && !isOpenAiConfigured) {
+    await new Promise(resolve => setTimeout(resolve, 800));
+  }
   return generateMockAiResponses(authorName, rating, text);
 }
