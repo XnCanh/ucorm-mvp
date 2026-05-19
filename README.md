@@ -9,10 +9,10 @@
 ## 📸 Screenshots
 
 ### 1. Place Sync & Demo Mode Alert
-![Place Sync & Demo Mode Alert](public/screenshot-sync.png)
+![Place Sync & Demo Mode Alert](public/Place%20Sync%20%26%20Demo%20Mode%20Alert.png)
 
 ### 2. AI Workspace, Auto-Translation & Review Approval
-![AI Workspace, Auto-Translation & Review Approval](public/screenshot-workspace.png)
+![AI Workspace, Auto-Translation & Review Approval](public/AI%20Workspace%2C%20Auto-Translation%20%26%20Review%20Approval.png)
 
 ---
 
@@ -121,4 +121,4 @@ graph TD
 **Truong Xuan Canh**
 * **Role:** Final-year Information Systems Student at Sai Gon University (SGU)
 * **GitHub:** [https://github.com/XnCanh](https://github.com/XnCanh)
-* **Portfolio/Demo:** [https://ucorm-mvp.vercel.app/](https://ucorm-mvp.vercel.app/)
+* **Portfolio:** [https://xncanh-portfolio.vercel.app/](https://xncanh-portfolio.vercel.app/)
