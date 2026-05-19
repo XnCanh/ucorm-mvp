@@ -37,6 +37,22 @@ export default function ReviewCard({ review, isActive, onClick }: ReviewCardProp
       : 'U';
   };
 
+  // Helper to map place_id to display name
+  const getPlaceName = (placeId: string) => {
+    switch (placeId) {
+      case 'ChIJaX7Ng4WrNTERq4EHmg6zO20':
+        return 'JW Marriott Hanoi';
+      case 'ChIJ7y1Y_q4pdTERP_p-r0x0s3o':
+        return 'Caravelle Saigon';
+      case 'ChIJP6x-GgW2NTER0QG1p_r0s3c':
+        return 'InterContinental Danang';
+      default:
+        return placeId && placeId.length > 10 
+          ? `ID: ${placeId.substring(0, 6)}...` 
+          : `ID: ${placeId || 'Unknown'}`;
+    }
+  };
+
   return (
     <div
       onClick={onClick}
@@ -74,18 +90,27 @@ export default function ReviewCard({ review, isActive, onClick }: ReviewCardProp
             </span>
           </div>
 
-          {/* Rating */}
-          <div className="flex items-center gap-0.5 mt-1">
-            {Array.from({ length: 5 }).map((_, i) => (
-              <Star
-                key={i}
-                className={`h-3.5 w-3.5 ${
-                  i < review.rating
-                    ? 'fill-yellow-400 text-yellow-400 drop-shadow-[0_0_4px_rgba(250,204,21,0.2)]'
-                    : 'text-gray-700'
-                }`}
-              />
-            ))}
+          {/* Rating & Place Badge */}
+          <div className="flex items-center justify-between mt-1 gap-2">
+            <div className="flex items-center gap-0.5 shrink-0">
+              {Array.from({ length: 5 }).map((_, i) => (
+                <Star
+                  key={i}
+                  className={`h-3.5 w-3.5 ${
+                    i < review.rating
+                      ? 'fill-yellow-400 text-yellow-400 drop-shadow-[0_0_4px_rgba(250,204,21,0.2)]'
+                      : 'text-gray-700'
+                  }`}
+                />
+              ))}
+            </div>
+            
+            <span 
+              className="text-[9px] font-bold text-gray-400 bg-gray-900/80 border border-gray-850 px-1.5 py-0.5 rounded truncate max-w-[120px] shadow-sm uppercase tracking-wider" 
+              title={getPlaceName(review.place_id)}
+            >
+              {getPlaceName(review.place_id)}
+            </span>
           </div>
 
           {/* Text Snippet */}

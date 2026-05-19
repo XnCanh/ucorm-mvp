@@ -12,6 +12,8 @@ import { Review } from '@/lib/db';
 export default function Dashboard() {
   const [reviews, setReviews] = useState<Review[]>([]);
   const [activeReview, setActiveReview] = useState<Review | null>(null);
+  const [selectedPlaceId, setSelectedPlaceId] = useState<string>('');
+  const [filterStatus, setFilterStatus] = useState<'all' | 'pending' | 'resolved'>('all');
   
   // Status flags
   const [isLoading, setIsLoading] = useState(true);
@@ -43,21 +45,21 @@ export default function Dashboard() {
     }, 4000);
   };
 
-  // Fetch reviews on initial load
+  // Load reviews from API
   const fetchReviews = async () => {
     try {
       setIsLoading(true);
       const res = await fetch('/api/reviews');
       const data = await res.json();
-      
       if (data.success) {
-        setReviews(data.reviews || []);
-        setDbSource(data.dbSource);
-        setApiKeysStatus(data.apiKeysStatus);
+        const allReviews = data.reviews || [];
+        setReviews(allReviews);
+        setDbSource(data.dbSource || 'Local DB (JSON)');
+        setApiKeysStatus(data.apiKeysStatus || { gemini: false, openai: false, google: false });
         
-        // Auto select first review if available
-        if (data.reviews && data.reviews.length > 0) {
-          setActiveReview(data.reviews[0]);
+        // Set active review to the first review overall
+        if (allReviews.length > 0) {
+          setActiveReview(allReviews[0]);
         }
       }
     } catch (err) {
@@ -84,7 +86,15 @@ export default function Dashboard() {
       const data = await res.json();
 
       if (data.success) {
-        setReviews(data.reviews || []);
+        const newReviews = data.reviews || [];
+        
+        // Merge new reviews with existing ones, overwriting duplicates
+        setReviews(prev => {
+          const filteredPrev = prev.filter(r => r.place_id !== placeId);
+          return [...newReviews, ...filteredPrev];
+        });
+        
+        setSelectedPlaceId(placeId);
         
         // Refresh system source info if any changed
         if (data.source === 'google-api') {
@@ -94,8 +104,8 @@ export default function Dashboard() {
         }
 
         // Auto select first review from new sync list
-        if (data.reviews && data.reviews.length > 0) {
-          setActiveReview(data.reviews[0]);
+        if (newReviews.length > 0) {
+          setActiveReview(newReviews[0]);
         }
       } else {
         showToast(data.error || 'Có lỗi xảy ra khi đồng bộ đánh giá', 'warning');
@@ -140,7 +150,8 @@ export default function Dashboard() {
 
   // Handler: Bulk Generate AI
   const handleBulkGenerateAI = async () => {
-    const targets = reviews.filter(r => r.status === 'pending' && !r.ai_responses);
+    const displayed = selectedPlaceId ? reviews.filter(r => r.place_id === selectedPlaceId) : reviews;
+    const targets = displayed.filter(r => r.status === 'pending' && !r.ai_responses);
     if (targets.length === 0) {
       showToast('Tuyệt vời! Tất cả đánh giá đã có phản hồi AI.', 'success');
       return;
@@ -204,6 +215,14 @@ export default function Dashboard() {
     }
   };
 
+  const placeFilteredReviews = selectedPlaceId 
+    ? reviews.filter(r => r.place_id === selectedPlaceId) 
+    : reviews;
+
+  const displayedReviews = placeFilteredReviews.filter(
+    r => filterStatus === 'all' || r.status === filterStatus
+  );
+
   return (
     <div className="flex-1 flex flex-col relative min-h-screen">
       {/* Toast Notification */}
@@ -232,7 +251,16 @@ export default function Dashboard() {
         <PlaceInput onFetch={handleSyncPlaceReviews} isLoading={isSyncing} hasGoogleKey={apiKeysStatus.google} />
 
         {/* Stats Overview */}
-        <StatsOverview reviews={reviews} />
+        <StatsOverview 
+          reviews={placeFilteredReviews} 
+          activeFilter={filterStatus}
+          onFilterChange={(status) => {
+            setFilterStatus(status);
+            if (status === 'all') {
+              setSelectedPlaceId(''); // Reset place filter on click Total
+            }
+          }}
+        />
 
         {/* Main Work Space Section */}
         <div className="max-w-7xl mx-auto px-6 grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
@@ -244,7 +272,7 @@ export default function Dashboard() {
                 Đang khởi tạo kết nối & tải dữ liệu...
               </p>
             </div>
-          ) : reviews.length === 0 ? (
+          ) : displayedReviews.length === 0 ? (
             /* Main workspace onboarding initial screen */
             <div className="col-span-12 glass-panel p-8 text-center rounded-2xl flex flex-col items-center justify-center py-16 max-w-4xl mx-auto">
               <div className="p-4 bg-indigo-500/10 rounded-full border border-indigo-500/20 text-indigo-400 mb-4 shadow-[0_0_15px_rgba(99,102,241,0.15)]">
@@ -252,7 +280,7 @@ export default function Dashboard() {
               </div>
               <h3 className="text-lg font-bold text-white">Bắt đầu Trải nghiệm AI ORM</h3>
               <p className="text-sm text-gray-400 max-w-lg mt-2 leading-relaxed">
-                Chào mừng bạn đến với <strong>AI-Powered ORM</strong>! Cơ sở dữ liệu hiện tại đang trống. Vui lòng nhập một Google Maps <strong>Place ID</strong> ở trên, hoặc click chọn nhanh các landmark demo để lấy 5 review thực tế và kích hoạt luồng AI phản hồi thông minh nhé!
+                Chào mừng bạn đến với <strong>AI-Powered ORM</strong>! Chưa có đánh giá nào cho địa điểm này. Vui lòng nhấn nút <strong>Đồng Bộ Đánh Giá</strong> ở trên để lấy 5 review thực tế và kích hoạt luồng AI phản hồi thông minh nhé!
               </p>
             </div>
           ) : (
@@ -266,7 +294,7 @@ export default function Dashboard() {
                   </h3>
                   <button
                     onClick={handleBulkGenerateAI}
-                    disabled={isBulkGenerating || reviews.filter(r => r.status === 'pending' && !r.ai_responses).length === 0}
+                    disabled={isBulkGenerating || displayedReviews.filter(r => r.status === 'pending' && !r.ai_responses).length === 0}
                     className="text-[10px] bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-400 border border-indigo-500/20 px-2 py-1 rounded font-bold flex items-center gap-1 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {isBulkGenerating ? <Loader2 className="h-3 w-3 animate-spin" /> : <Wand2 className="h-3 w-3" />}
@@ -274,7 +302,7 @@ export default function Dashboard() {
                   </button>
                 </div>
                 <ReviewList
-                  reviews={reviews}
+                  reviews={displayedReviews}
                   activeId={activeReview ? activeReview.id : null}
                   onSelect={(r) => setActiveReview(r)}
                 />
